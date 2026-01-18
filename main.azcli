@@ -1,0 +1,42 @@
+# login
+az login --use-device-code
+
+# set subscriptio to apply
+az account set --subscription ''
+
+# install bicep
+az bicep install --version v0.39.26
+
+# check bicep version
+az bicep version
+
+# build template
+az bicep build --file main.bicep --outfile main.arm.json
+
+# .arm-template: decompile
+az bicep decompile --file main.arm.json --force
+
+# dry-run
+az deployment sub what-if --location eastus2 --template-file main.bicep
+
+# validate
+az deployment sub validate --location eastus2 --template-file main.bicep
+
+# always use --mode Complete after escope subscription
+# az deployment sub create --location eastus2 --template-file main.bicep --mode Complete
+
+az deployment sub create \
+  --location eastus2 \
+  --template-file main.bicep \
+  --parameters sshPublicKey="$(cat ~/.ssh/id_rsa.pub)"
+
+
+
+# get informations
+az deployment sub show \
+  --name main \
+  --query properties.outputs.resourceGroupName.value -o tsv
+
+# delte: example name
+az group delete --name "RG-23DF1793-A23D-5476-863F-3E07B3550827" --yes --no-wait
+
