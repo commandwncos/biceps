@@ -1,3 +1,4 @@
+targetScope = 'resourceGroup'
 param vmName string
 param location string
 param nicId string

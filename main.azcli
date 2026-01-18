@@ -1,42 +1,87 @@
-# login
+
+# 1️⃣ Login to Azure
+echo "🔑 Logging in to Azure..."
 az login --use-device-code
 
-# set subscriptio to apply
-az account set --subscription ''
+# 2️⃣ Set the subscription
+echo "📌 Setting subscription..."
+az account set --subscription "<SUBSCRIPTION_ID>"
 
-# install bicep
+# 3️⃣ Install Bicep
+echo "⚡ Installing Bicep CLI..."
 az bicep install --version v0.39.26
-
-# check bicep version
 az bicep version
 
-# build template
+# 4️⃣ Build template (optional)
+echo "🛠 Building Bicep template..."
 az bicep build --file main.bicep --outfile main.arm.json
 
-# .arm-template: decompile
-az bicep decompile --file main.arm.json --force
+# 5️⃣ Decompile ARM template (optional)
+# Useful for debugging or converting back to Bicep
+# az bicep decompile --file main.arm.json --force
 
-# dry-run
+# 6️⃣ Dry-run (What-If)
+echo "🔍 Running what-if analysis..."
 az deployment sub what-if --location eastus2 --template-file main.bicep
 
-# validate
+# 7️⃣ Validate template
+echo "✅ Validating Bicep template..."
 az deployment sub validate --location eastus2 --template-file main.bicep
 
-# always use --mode Complete after escope subscription
-# az deployment sub create --location eastus2 --template-file main.bicep --mode Complete
-
+# 8️⃣ Deploy infrastructure (always use --mode Complete for subscription scope)
+echo "🚀 Deploying Azure infrastructure..."
 az deployment sub create \
   --location eastus2 \
   --template-file main.bicep \
-  --parameters sshPublicKey="$(cat ~/.ssh/id_rsa.pub)"
+  --parameters sshPublicKey="$(cat ~/.ssh/id_rsa.pub)" \
+  --mode Complete
+
+# 9️⃣ Get outputs from deployment
+echo "📄 Retrieving deployment outputs..."
+RG_NAME=$(az deployment sub show --name main --query properties.outputs.resourceGroupName.value -o tsv)
+VM_IP=$(az deployment sub show --name main --query properties.outputs.vmPublicIp.value -o tsv)
+
+echo "Resource Group: $RG_NAME"
+echo "VM Public IP: $VM_IP"
+
+# 1️⃣0️⃣ Create Role Assignment for Application (Contributor)
+# This allows the app/service principal to deploy or manage resources in this RG
+echo "🔐 Creating Role Assignment for App..."
+az role assignment create \
+  --assignee "<APP_CLIENT_ID>" \
+  --role "Contributor" \
+  --scope "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/$RG_NAME"
+
+echo "✅ Role assignment created."
+
+# 1️⃣1️⃣ Cleanup example (optional)
+# Uncomment if you want to remove all resources
+# echo "🗑 Deleting Resource Group..."
+# az group delete --name "$RG_NAME" --yes --no-wait
+```
 
 
 
-# get informations
-az deployment sub show \
-  --name main \
-  --query properties.outputs.resourceGroupName.value -o tsv
+### 🔑 Notes
 
-# delte: example name
-az group delete --name "RG-23DF1793-A23D-5476-863F-3E07B3550827" --yes --no-wait
+# 1. **Replace placeholders**:
+
+#    * `<SUBSCRIPTION_ID>` → Your Azure subscription ID
+#    * `<APP_CLIENT_ID>` → Client ID of your application/service principal
+
+# 2. **Outputs captured**:
+
+#    * `RG_NAME` → Resource Group name
+#    * `VM_IP` → VM public IP, useful for Ansible playbook or manual access
+
+# 3. **Role Assignment**:
+
+#    * Gives the application Contributor permissions on the newly created Resource Group
+#    * Ensures your CI/CD app can deploy resources if needed
+
+# 4. **Optional cleanup**:
+
+#    * Uncomment last section to remove all resources after testing
+
+
 

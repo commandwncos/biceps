@@ -1,4 +1,5 @@
 targetScope = 'subscription'
+
 var default = loadYamlContent('default.yaml')
 
 // ============================
@@ -23,8 +24,10 @@ resource rg 'Microsoft.Resources/resourceGroups@2025-04-01' = {
   tags: default.tags
 }
 
+
+
 // ============================
-// VNET + SUBNET
+// VNET + SUBNET (NSG NA SUBNET)
 // ============================
 module vnet './modules/vnet.bicep' = {
   name: 'deploy-vnet'
@@ -32,7 +35,6 @@ module vnet './modules/vnet.bicep' = {
   params: {
     vnetName: 'vnet-main'
     location: location
-    
   }
 }
 

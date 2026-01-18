@@ -1,0 +1,43 @@
+name: Configure VM with Ansible
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ansible:
+    name: Configure Linux VM
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 2️⃣ Set up Python and pip
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      # 3️⃣ Install Ansible
+      - name: Install Ansible
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible
+
+      # 4️⃣ Add SSH private key for VM access
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      # 5️⃣ Copy Ansible inventory
+      - name: Create Ansible inventory
+        run: |
+          echo "[web]" > inventory.ini
+          echo "${{ secrets.VM_PUBLIC_IP }}" >> inventory.ini
+
+      # 6️⃣ Run Ansible playbook
+      - name: Run Ansible Playbook
+        run: |
+          ansible-playbook -i inventory.ini playbooks/setup-vm.yml --user azureuseradminfoo --private-key ~/.ssh/id_rsa

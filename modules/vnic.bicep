@@ -1,3 +1,4 @@
+targetScope = 'resourceGroup'
 param nicName string
 param location string
 param subnetId string
@@ -21,6 +22,7 @@ resource nic 'Microsoft.Network/networkInterfaces@2024-03-01' = {
         }
       }
     ]
+    
   }
 }
 

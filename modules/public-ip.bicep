@@ -1,3 +1,4 @@
+targetScope = 'resourceGroup'
 param publicIpName string
 param location string
 

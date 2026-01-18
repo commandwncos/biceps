@@ -1,0 +1,72 @@
+name: Deploy Azure Infrastructure
+
+# Trigger workflow manually
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy Bicep Infrastructure
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 2️⃣ Login to Azure using Service Principal
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # 3️⃣ Install Bicep CLI
+      - name: Install Bicep CLI
+        run: |
+          az bicep install --version v0.39.26
+          az bicep version
+
+      # 4️⃣ Dry-run (what-if) Bicep template
+      - name: Bicep What-If
+        run: |
+          az deployment sub what-if \
+            --location eastus2 \
+            --template-file main.bicep
+
+      # 5️⃣ Validate Bicep template
+      - name: Validate Bicep template
+        run: |
+          az deployment sub validate \
+            --location eastus2 \
+            --template-file main.bicep
+
+      # 6️⃣ Deploy Bicep template
+      - name: Deploy Bicep Template
+        run: |
+          az deployment sub create \
+            --location eastus2 \
+            --template-file main.bicep \
+            --parameters sshPublicKey="${{ secrets.SSH_PUBLIC_KEY }}" \
+            --mode Complete
+
+      # 7️⃣ Capture deployment outputs
+      - name: Get Deployment Outputs
+        id: outputs
+        run: |
+          RG_NAME=$(az deployment sub show \
+            --name main \
+            --query properties.outputs.resourceGroupName.value -o tsv)
+          VM_IP=$(az deployment sub show \
+            --name main \
+            --query properties.outputs.vmPublicIp.value -o tsv)
+          echo "Resource Group: $RG_NAME"
+          echo "VM Public IP: $VM_IP"
+          echo "::set-output name=resourceGroup::$RG_NAME"
+          echo "::set-output name=vmPublicIp::$VM_IP"
+
+      # 8️⃣ Summary
+      - name: Summary
+        run: |
+          echo "✅ Azure infrastructure provisioned successfully!"
+          echo "Resource Group: ${{ steps.outputs.outputs.resourceGroup }}"
+          echo "VM Public IP: ${{ steps.outputs.outputs.vmPublicIp }}"

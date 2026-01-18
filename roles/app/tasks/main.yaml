@@ -1,0 +1,8 @@
+---
+- name: Pull sample container
+  docker_container:
+    name: myapp
+    image: nginx:latest
+    state: started
+    ports:
+      - "8080:80"

@@ -1,216 +1,213 @@
-# Deploy de Infraestrutura Azure com Bicep
+# Azure VM Portfolio Project
 
-Este projeto contém um template Bicep (`main.bicep`) para criar uma VM Linux completa, incluindo:
-
-- Resource Group
-- VNet + Subnet
-- Public IP
-- Network Interface (NIC)
-- Managed Disk
-- Virtual Machine Linux configurada com SSH key (sem senha)
-
-Este README explica passo a passo como usar o arquivo `main.azcli` para automatizar o deploy.
+This project demonstrates how to deploy a **Linux VM on Azure** using **Bicep**, configure it with **Ansible**, and run a sample application via **Docker and Nginx**. It is designed as a portfolio example showing **IaC + CI/CD** workflow.
 
 ---
 
-## 1️⃣ Login no Azure
+## 📁 Project Structure
 
-Antes de qualquer deploy, faça login na sua conta:
+```
+.
+├── README.md
+├── default.yaml             # Default tags and configuration
+├── main.azcli               # CLI automation script for Azure deploy
+├── main.bicep               # Main Bicep template for Azure resources
+├── modules                  # Reusable Bicep modules
+│   ├── disk.bicep
+│   ├── public-ip.bicep
+│   ├── vm.bicep
+│   ├── vnet.bicep
+│   └── vnic.bicep
+├── playbooks                # Ansible playbooks
+│   └── setup-vm.yml
+└── roles
+    ├── app                  # Deploy sample application container
+    │   └── tasks
+    │       └── main.yaml
+    ├── docker               # Install and configure Docker
+    │   └── tasks
+    │       └── main.yaml
+    └── nginx                # Install and configure Nginx
+        └── tasks
+            └── main.yaml
+```
+
+---
+
+## 🛠 Features
+
+* **Azure Infrastructure**
+
+  * Resource Group
+  * Virtual Network (VNet) + Subnet
+  * Public IP
+  * Network Interface (NIC)
+  * Managed Disk
+  * Linux Virtual Machine with SSH key login
+
+* **Configuration via Ansible**
+
+  * Docker installation
+  * Nginx installation
+  * Deploy sample container application
+
+* **CI/CD Ready**
+
+  * GitHub Actions workflow to deploy infrastructure
+  * GitHub Actions workflow to configure VM with Ansible
+
+---
+
+## ⚡ Prerequisites
+
+* Azure account
+* Subscription ID
+* SSH key pair (`~/.ssh/id_rsa` / `~/.ssh/id_rsa.pub`)
+* GitHub repository with **Secrets**:
+
+  * `AZURE_CREDENTIALS` → Service Principal JSON
+  * `SSH_PUBLIC_KEY` → Public SSH key
+  * `SSH_PRIVATE_KEY` → Private SSH key for Ansible
+  * `VM_PUBLIC_IP` → Populated after Bicep deploy (for manual Ansible runs)
+
+---
+
+## 1️⃣ Generate Azure Credentials (Service Principal)
+
+```bash
+az ad sp create-for-rbac --name "portfolio-sp" --role Contributor --scopes /subscriptions/<SUBSCRIPTION_ID>
+```
+
+This outputs JSON:
+
+```json
+{
+  "appId": "...",
+  "displayName": "portfolio-sp",
+  "password": "...",
+  "tenant": "..."
+}
+```
+
+> Save this JSON as GitHub secret `AZURE_CREDENTIALS`.
+
+---
+
+## 2️⃣ Login and Set Subscription
 
 ```bash
 az login --use-device-code
-````
-
-> ⚡ Este comando abre um link e um código de dispositivo para autenticação.
-
----
-
-## 2️⃣ Selecionar a Subscription
-
-Escolha a subscription onde os recursos serão criados:
-
-```bash
-az account set --subscription '<SUBSCRIPTION_ID>'
+az account set --subscription "<SUBSCRIPTION_ID>"
 ```
 
-Substitua `<SUBSCRIPTION_ID>` pelo ID ou nome da sua subscription.
-
 ---
 
-## 3️⃣ Instalar e verificar o Bicep
-
-Instale a versão necessária do Bicep:
+## 3️⃣ Install and Verify Bicep
 
 ```bash
 az bicep install --version v0.39.26
-```
-
-Verifique se o Bicep foi instalado corretamente:
-
-```bash
 az bicep version
 ```
 
-> Isso garante compatibilidade com o template.
-
 ---
 
-## 4️⃣ Compilar o template Bicep para ARM JSON
+## 4️⃣ Deploy Azure Infrastructure (Bicep)
 
-Para gerar o arquivo JSON equivalente (opcional, mas útil para debug):
+### Using CLI (`main.azcli`):
 
 ```bash
-az bicep build --file main.bicep --outfile main.arm.json
-```
-
-Se quiser, é possível **decompilar** um ARM template de volta para Bicep:
-
-```bash
-az bicep decompile --file main.arm.json --force
-```
-
----
-
-## 5️⃣ Testar alterações sem aplicar (dry-run)
-
-Para ver quais alterações serão feitas sem realmente criar recursos:
-
-```bash
-az deployment sub what-if --location eastus2 --template-file main.bicep
-```
-
----
-
-## 6️⃣ Validar template
-
-Valida sintaxe, parâmetros e permissões:
-
-```bash
-az deployment sub validate --location eastus2 --template-file main.bicep
-```
-
----
-
-## 7️⃣ Criar ou atualizar a infraestrutura
-
-⚠️ Sempre use `--mode Complete` em escopo de subscription para garantir que recursos obsoletos sejam removidos:
-
-```bash
-az deployment sub create \
-  --location eastus2 \
-  --template-file main.bicep \
-  --parameters sshPublicKey="$(cat ~/.ssh/id_rsa.pub)" \
-  --mode Complete
-```
-
-### Parâmetro importante:
-
-* `sshPublicKey`: conteúdo da sua chave pública SSH (`~/.ssh/id_rsa.pub`)
-
-  * Garante que você poderá logar na VM sem precisar de senha.
-
----
-
-## 8️⃣ Obter informações da implantação
-
-Exemplo: recuperar o nome do Resource Group criado:
-
-```bash
-az deployment sub show \
-  --name main \
-  --query properties.outputs.resourceGroupName.value -o tsv
-```
-
-Você pode usar o mesmo comando para obter outras outputs definidas no `main.bicep`.
-
----
-
-## 9️⃣ Deletar o Resource Group (exemplo)
-
-Para remover todos os recursos de forma limpa:
-
-```bash
-az group delete --name "RG-23DF1793-A23D-5476-863F-3E07B3550827" --yes --no-wait
-```
-
-> ⚠️ `--no-wait` faz o comando retornar imediatamente; recursos continuam sendo deletados em background.
-
----
-
-## 🔑 Observações importantes
-
-* Este template é **Linux-only** e **usa SSH key**. Não há senha configurada.
-* Certifique-se de gerar uma chave SSH antes do deploy (`ssh-keygen -t rsa -b 4096`).
-* Sempre use **subscription scope** com `--mode Complete` para evitar recursos órfãos.
-* Teste sempre com `what-if` antes de criar recursos em produção.
-
----
-
-## 📝 Checklist antes do deploy
-
-Antes de rodar o deploy, verifique:
-
-* [ ] Gerar chave SSH pública (`~/.ssh/id_rsa.pub`)
-* [ ] Fazer login no Azure
-* [ ] Selecionar a subscription correta
-* [ ] Instalar/Verificar Bicep
-* [ ] Validar template (`az deployment sub validate`)
-* [ ] Testar `what-if` para revisão de mudanças
-* [ ] Confirmar parâmetros no deploy (`sshPublicKey`, `adminUsername`)
-* [ ] Deploy com `--mode Complete`
-* [ ] Verificar outputs da implantação (`resourceGroupName`, `resourceGroupLocation`, `resourceGroupTags`)
-* [ ] Remover recursos obsoletos, se necessário (`az group delete`)
-
----
-
-## 📌 Referências
-
-* [Bicep Documentation](https://learn.microsoft.com/azure/azure-resource-manager/bicep/overview)
-* [Deploy with Azure CLI](https://learn.microsoft.com/azure/azure-resource-manager/templates/deploy-cli)
-* [SSH Key Login for Linux VMs](https://learn.microsoft.com/azure/virtual-machines/linux/mac-create-ssh-keys)
-
----
-
-## ✅ Resumo de comandos (`main.azcli`)
-
-```bash
-# Login
-az login --use-device-code
-
-# Set subscription
-az account set --subscription '<SUBSCRIPTION_ID>'
-
-# Install Bicep
-az bicep install --version v0.39.26
-
-# Check Bicep version
-az bicep version
-
-# Build template (optional)
-az bicep build --file main.bicep --outfile main.arm.json
-
-# Decompile template (optional)
-az bicep decompile --file main.arm.json --force
-
 # Dry-run
 az deployment sub what-if --location eastus2 --template-file main.bicep
 
 # Validate template
 az deployment sub validate --location eastus2 --template-file main.bicep
 
-# Deploy (always use --mode Complete for subscription scope)
+# Deploy
 az deployment sub create \
   --location eastus2 \
   --template-file main.bicep \
   --parameters sshPublicKey="$(cat ~/.ssh/id_rsa.pub)" \
   --mode Complete
-
-# Get outputs
-az deployment sub show \
-  --name main \
-  --query properties.outputs.resourceGroupName.value -o tsv
-
-# Delete example RG
-az group delete --name "RG-23DF1793-A23D-5476-863F-3E07B3550827" --yes --no-wait
 ```
 
+### Using GitHub Actions
+
+* Workflow: `.github/workflows/deploy-infra.yml`
+* Automatically deploys infrastructure to Azure
+* Captures outputs: `resourceGroup` and `vmPublicIp`
+
+---
+
+## 5️⃣ Configure VM via Ansible
+
+### Inventory (`inventory.ini` example)
+
+```ini
+[web]
+VM_PUBLIC_IP ansible_user=azureuseradminfoo ansible_ssh_private_key_file=~/.ssh/id_rsa
+```
+
+### Run Playbook Locally
+
+```bash
+ansible-playbook -i inventory.ini playbooks/setup-vm.yml
+```
+
+### GitHub Actions Workflow
+
+* Workflow: `.github/workflows/configure-vm-ansible.yml`
+* Installs Docker, Nginx, and deploys a sample container automatically
+
+---
+
+## 6️⃣ Verify Deployment
+
+* SSH into the VM:
+
+```bash
+ssh azureuseradminfoo@<VM_PUBLIC_IP>
+```
+
+* Access sample app:
+
+```
+http://<VM_PUBLIC_IP>:8080
+```
+
+* Verify Docker containers:
+
+```bash
+docker ps
+```
+
+---
+
+## 7️⃣ Cleanup
+
+Remove all resources to avoid costs:
+
+```bash
+az group delete --name "<RESOURCE_GROUP_NAME>" --yes --no-wait
+```
+
+---
+
+## 📝 Notes
+
+* Linux-only VM with SSH key authentication (no password)
+* Always test `what-if` before deployment
+* GitHub Actions workflows are designed for manual trigger (`workflow_dispatch`)
+* Playbooks are modular using roles for **Docker**, **Nginx**, and **App**
+
+---
+
+## 📌 References
+
+* [Bicep Documentation](https://learn.microsoft.com/azure/azure-resource-manager/bicep/overview)
+* [Deploy Azure Templates with CLI](https://learn.microsoft.com/azure/azure-resource-manager/templates/deploy-cli)
+* [SSH Key Login for Linux VMs](https://learn.microsoft.com/azure/virtual-machines/linux/mac-create-ssh-keys)
+* [Ansible Documentation](https://docs.ansible.com/)
+
+---
+
+✅ This setup demonstrates **full Azure IaC + VM configuration**, perfect for showcasing **DevOps skills in cloud automation**.
