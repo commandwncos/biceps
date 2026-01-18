@@ -1,0 +1,8 @@
+---
+- name: Configure Linux VM
+  hosts: web
+  become: yes
+  roles:
+    - docker
+    - nginx
+    - app
